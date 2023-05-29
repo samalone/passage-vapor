@@ -16,6 +16,15 @@ extension URL: ExpressibleByStringLiteral {
     }
 }
 
+#if os(Linux)
+extension URL {
+    func appending(component: String) -> URL {
+        var result = self
+        result.append(component: component)
+        return result
+    }
+}
+
 public struct PassageToken: JWTPayload {
     // Maps the longer Swift property names to the
     // shortened keys used in the JWT payload.
