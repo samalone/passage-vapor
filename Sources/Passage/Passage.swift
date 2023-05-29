@@ -26,6 +26,7 @@ extension URL {
         return URL(string: self.absoluteString + component)!
     }
 }
+#endif
 
 public struct PassageToken: JWTPayload {
     // Maps the longer Swift property names to the
