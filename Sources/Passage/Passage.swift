@@ -19,9 +19,7 @@ extension URL: ExpressibleByStringLiteral {
 #if os(Linux)
 extension URL {
     func appending(component: String) -> URL {
-        var result = self
-        result.append(component: component)
-        return result
+        return URL(string: self.absoluteString + component)!
     }
 }
 
@@ -53,6 +51,7 @@ public struct PassageToken: JWTPayload {
 public struct Passage: Encodable {
     public let applicationID: String
     private let apiKey: String
+    private let session = URLSession()
     
     // We want the Passage to be Encodable so it can be part of a Leaf context,
     // but we don't want our private apiKey to leak out to the client, so make
@@ -94,7 +93,7 @@ public struct Passage: Encodable {
         var request = URLRequest(url: Passage.apiRoot / "apps" / applicationID)
         request.addValue("Bearer " + apiKey, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, _) = try await session.data(for: request)
         let appResp = try JSONDecoder().decode(PassageAppResponse.self, from: data)
         return appResp.app
     }
