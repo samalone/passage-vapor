@@ -1,7 +1,4 @@
 import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
 import Vapor
 import JWT
 
@@ -9,24 +6,6 @@ public enum PassageError: Error {
     case publicKeyNotBase64
     case publicKeyInvalidUTF8
 }
-
-extension URL: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
-        self.init(string: value)!
-    }
-    
-    static func / (_ lhs: URL, _ rhs: String) -> URL {
-        return lhs.appending(component: rhs)
-    }
-}
-
-#if os(Linux)
-extension URL {
-    func appending(component: String) -> URL {
-        return URL(string: self.absoluteString + component)!
-    }
-}
-#endif
 
 public struct PassageToken: JWTPayload {
     // Maps the longer Swift property names to the
@@ -56,7 +35,6 @@ public struct PassageToken: JWTPayload {
 public struct Passage: Encodable {
     public let applicationID: String
     private let apiKey: String
-    private let session = URLSession(configuration: URLSessionConfiguration.default)
     
     // We want the Passage to be Encodable so it can be part of a Leaf context,
     // but we don't want our private apiKey to leak out to the client, so make
@@ -65,8 +43,8 @@ public struct Passage: Encodable {
         case applicationID
     }
     
-    static let authRoot: URL = "https://auth.passage.id/v1/"
-    static let apiRoot: URL = "https://api.passage.id/v1/"
+    static let authRoot = "https://auth.passage.id/v1/"
+    static let apiRoot = "https://api.passage.id/v1/"
 
     public init(appID: String, apiKey: String) throws {
         self.applicationID = appID
@@ -94,12 +72,12 @@ public struct Passage: Encodable {
 //        return JWTSigner.rs256(key: .public(publicKey))
 //    }
     
-    func getApp() async throws -> PassageApp {
-        var request = URLRequest(url: Passage.apiRoot / "apps" / applicationID)
-        request.addValue("Bearer " + apiKey, forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, _) = try await session.data(for: request)
-        let appResp = try JSONDecoder().decode(PassageAppResponse.self, from: data)
+    func getApp(client: Client) async throws -> PassageApp {
+        let response = try await client.get(URI(string: Passage.apiRoot + "apps/" + applicationID)) { req in
+            req.headers.bearerAuthorization = BearerAuthorization(token: apiKey)
+            req.headers.replaceOrAdd(name: .accept, value: "application/json")
+        }
+        let appResp = try response.content.decode(PassageAppResponse.self)
         return appResp.app
     }
 
@@ -135,7 +113,7 @@ extension Application {
     public func configure(passage: Passage, isDefault: Bool = true) async throws {
         self.passage = passage
         
-        let app = try await passage.getApp()
+        let app = try await passage.getApp(client: self.client)
         guard let data = Data(base64Encoded: app.rsa_public_key) else {
             throw PassageError.publicKeyNotBase64
         }
